@@ -1,61 +1,89 @@
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useEffect, useState } from 'react';
+import Animated, {
+  useSharedValue,
+  useAnimatedProps,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 
-export default function RiskGauge({ risk, color }: { risk: number; color: string }) {
-  const [animatedRisk, setAnimatedRisk] = useState(0);
+const AnimatedPath = Animated.createAnimatedComponent(Path);
 
-  const radius = 90;
-  const strokeWidth = 12;
-  const circumference = Math.PI * radius;
+interface RiskGaugeProps {
+  risk: number;
+  color: string;
+}
 
-  // 🎯 Animate from 0 → risk
+export default function RiskGauge({ risk, color }: RiskGaugeProps) {
+  const strokeWidth = 14;
+  const circumference = Math.PI * 100; // arc for A 100 100
+
+  // ── Animated arc via Reanimated ──────────────
+  const progress = useSharedValue(0);
+
   useEffect(() => {
+    progress.value = withTiming(risk / 100, {
+      duration: 1400,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [risk]);
+
+  const animatedProps = useAnimatedProps(() => ({
+    strokeDashoffset: circumference * (1 - progress.value),
+  }));
+
+  // ── Animated number via JS (synced timing) ───
+  const [displayVal, setDisplayVal] = useState(0);
+
+  useEffect(() => {
+    const duration = 1400;
+    const totalSteps = 70;
+    const stepTime = duration / totalSteps;
+    const increment = risk / totalSteps;
     let current = 0;
 
     const interval = setInterval(() => {
-      current += 1;
+      current += increment;
       if (current >= risk) {
         current = risk;
         clearInterval(interval);
       }
-      setAnimatedRisk(current);
-    }, 15);
+      setDisplayVal(Math.round(current));
+    }, stepTime);
 
     return () => clearInterval(interval);
   }, [risk]);
 
-  const progress = animatedRisk / 100;
-  const strokeDashoffset = circumference * (1 - progress);
-
   return (
     <View style={styles.container}>
-      <Svg width={220} height={130} viewBox="0 0 220 130">
+      {/* Glow behind the gauge */}
+      <View style={[styles.glow, { shadowColor: color }]} />
 
-        {/* Background Arc */}
+      <Svg width={240} height={140} viewBox="0 0 240 140">
+        {/* Background arc */}
         <Path
-          d="M 20 110 A 90 90 0 0 1 200 110"
-          stroke="rgba(255,255,255,0.1)"
+          d="M 20 120 A 100 100 0 0 1 220 120"
+          stroke="rgba(255,255,255,0.08)"
           strokeWidth={strokeWidth}
           fill="none"
           strokeLinecap="round"
         />
-
-        {/* Animated Arc */}
-        <Path
-          d="M 20 110 A 90 90 0 0 1 200 110"
+        {/* Filled arc */}
+        <AnimatedPath
+          d="M 20 120 A 100 100 0 0 1 220 120"
           stroke={color}
           strokeWidth={strokeWidth}
           fill="none"
           strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
+          animatedProps={animatedProps}
           strokeLinecap="round"
         />
-
       </Svg>
 
+      {/* Percentage text */}
       <View style={styles.textContainer}>
-        <Text style={styles.percent}>{animatedRisk}%</Text>
+        <Text style={styles.percent}>{displayVal}%</Text>
       </View>
     </View>
   );
@@ -66,13 +94,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  glow: {
+    position: 'absolute',
+    width: 180,
+    height: 90,
+    borderRadius: 90,
+    top: 10,
+    shadowOpacity: 0.6,
+    shadowRadius: 30,
+    elevation: 20,
+    backgroundColor: 'transparent',
+  },
   textContainer: {
     position: 'absolute',
-    top: 40,
+    top: 50,
+    alignItems: 'center',
   },
   percent: {
-    color: 'white',
-    fontSize: 28,
-    fontWeight: '700',
+    color: '#f1f5f9',
+    fontSize: 36,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
 });
