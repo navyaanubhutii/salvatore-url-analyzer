@@ -110,6 +110,31 @@ export default function ThreatInfoScreen() {
 
   const [activeId, setActiveId] = useState<string | null>(focusId ?? null);
 
+  // Refs for auto-scroll
+  const scrollViewRef = useRef<ScrollView>(null);
+  const contentRef = useRef<View>(null);
+  const rowRefs = useRef<Record<string, View | null>>({});
+
+  // Scroll to the focused threat after it is expanded and laid out
+  useEffect(() => {
+    if (!activeId) return;
+    const timer = setTimeout(() => {
+      const rowNode = rowRefs.current[activeId];
+      const contentNode = contentRef.current;
+      if (rowNode && contentNode) {
+        rowNode.measureLayout(
+          contentNode as unknown as React.ElementRef<typeof View>,
+          (_x: number, y: number) => {
+            // Offset by 80px so the header stays visible above the threat row
+            scrollViewRef.current?.scrollTo({ y: Math.max(0, y - 80), animated: true });
+          },
+          () => {} // Silent fail — scroll just won't happen
+        );
+      }
+    }, 300); // Wait for expansion animation + layout
+    return () => clearTimeout(timer);
+  }, [activeId]);
+
   // Group threats by category
   const grouped = THREAT_DATABASE.reduce<Record<string, ThreatEntry[]>>((acc, t) => {
     if (!acc[t.category]) acc[t.category] = [];
@@ -122,53 +147,61 @@ export default function ThreatInfoScreen() {
   return (
     <LinearGradient colors={['#0f172a', '#064e3b']} style={styles.container}>
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={[
           styles.content,
           { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 },
         ]}
       >
-        {/* Header */}
-        <TouchableOpacity style={styles.back} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color="#94a3b8" />
-          <Text style={styles.backText}>Back</Text>
-        </TouchableOpacity>
+        {/* Attach ref to the content container for measureLayout */}
+        <View ref={contentRef} collapsable={false}>
+          {/* Header */}
+          <TouchableOpacity style={styles.back} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={22} color="#94a3b8" />
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
 
-        <Text style={styles.pageTitle}>Threat Encyclopedia</Text>
-        <Text style={styles.pageSubtitle}>
-          Tap any threat to understand how it works, how attackers exploit it, and how to defend against it.
-        </Text>
+          <Text style={styles.pageTitle}>Threat Encyclopedia</Text>
+          <Text style={styles.pageSubtitle}>
+            Tap any threat to understand how it works, how attackers exploit it, and how to defend against it.
+          </Text>
 
-        {/* Categories */}
-        {Object.entries(grouped).map(([category, entries]) => (
-          <View key={category} style={styles.category}>
-            <View style={styles.categoryHeader}>
-              <Ionicons
-                name={CATEGORY_ICONS[category] ?? 'alert-circle-outline'}
-                size={18}
-                color="#3b82f6"
-              />
-              <Text style={styles.categoryTitle}>{category}</Text>
+          {/* Categories */}
+          {Object.entries(grouped).map(([category, entries]) => (
+            <View key={category} style={styles.category}>
+              <View style={styles.categoryHeader}>
+                <Ionicons
+                  name={CATEGORY_ICONS[category] ?? 'alert-circle-outline'}
+                  size={18}
+                  color="#3b82f6"
+                />
+                <Text style={styles.categoryTitle}>{category}</Text>
+              </View>
+
+              <View style={styles.card}>
+                {entries.map((entry, idx) => (
+                  <View
+                    key={entry.id}
+                    ref={(r) => { rowRefs.current[entry.id] = r; }}
+                    collapsable={false}
+                  >
+                    <ThreatRow
+                      entry={entry}
+                      isActive={activeId === entry.id}
+                      onToggle={() => toggle(entry.id)}
+                    />
+                    {idx < entries.length - 1 && <View style={styles.divider} />}
+                  </View>
+                ))}
+              </View>
             </View>
+          ))}
 
-            <View style={styles.card}>
-              {entries.map((entry, idx) => (
-                <View key={entry.id}>
-                  <ThreatRow
-                    entry={entry}
-                    isActive={activeId === entry.id}
-                    onToggle={() => toggle(entry.id)}
-                  />
-                  {idx < entries.length - 1 && <View style={styles.divider} />}
-                </View>
-              ))}
-            </View>
-          </View>
-        ))}
-
-        {/* Footer note */}
-        <Text style={styles.footer}>
-          Scores represent heuristic suspicion weight, not probability of maliciousness.
-        </Text>
+          {/* Footer note */}
+          <Text style={styles.footer}>
+            Scores represent heuristic suspicion weight, not probability of maliciousness.
+          </Text>
+        </View>
       </ScrollView>
     </LinearGradient>
   );

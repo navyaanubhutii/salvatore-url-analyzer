@@ -110,6 +110,36 @@ export const THREAT_DATABASE: ThreatEntry[] = [
     example: 'secure-apple-account-login-verify-update.xyz',
     defenseNote: 'Short, simple domains are a mark of legitimate services. Excessive length is suspicious.',
   },
+  {
+    id: 'tld_check',
+    category: 'Structural Analysis',
+    label: 'Suspicious TLD',
+    score: 15,
+    severity: 'Strong',
+    shortDescription: 'The URL uses a top-level domain that is statistically over-represented in phishing and abuse campaigns.',
+    howItWorks:
+      'Top-level domains (TLDs) are the rightmost label of a domain name (.com, .net, .xyz). Certain TLDs are favored by attackers because they are cheap, require no identity verification, and have lenient abuse policies. Security researchers track TLD abuse rates — extensions like .xyz, .top, .click, .tk, and .icu are consistently found in disproportionately high numbers in phishing datasets.',
+    attackerUsage:
+      'Attackers register thousands of disposable domains on cheap TLDs like .xyz or .tk (which offers free registrations). Because these domains cost almost nothing, they are burned after each campaign and replaced. This makes takedowns expensive but domain registration trivial for attackers.',
+    example: 'paypal-login.xyz, secure-banking.top, google-verify.icu',
+    defenseNote:
+      'While legitimate sites do use alternative TLDs, a suspicious TLD combined with brand keywords or auth bait is a strong phishing indicator. Always verify the full domain before entering any credentials.',
+  },
+  {
+    id: 'shortener_check',
+    category: 'Structural Analysis',
+    label: 'URL Shortener',
+    score: 15,
+    severity: 'Moderate',
+    shortDescription: 'The URL uses a shortening service that obscures the final destination.',
+    howItWorks:
+      'URL shorteners (bit.ly, tinyurl.com, t.co) replace a full URL with a short opaque token. The real destination is only revealed when the short link is followed. This means you cannot evaluate the safety of a URL from the link itself — the actual landing page could be anything from a legitimate article to malware.',
+    attackerUsage:
+      'Attackers use URL shorteners in phishing messages to hide the malicious destination from both victims and security filters. Email security gateways and message scanners cannot inspect the final URL without following the redirect. Social media platforms that display link previews often show the shortener\'s branding instead of the real destination.',
+    example: 'https://bit.ly/3kX9s8D, https://t.co/abc123',
+    defenseNote:
+      'Never click a shortened link in an unexpected message. Use a URL expander service (e.g., checkshorturl.com) to preview the destination before visiting.',
+  },
 
   // ── Category 3: Lexical Analysis ───────────────────────────────────────────
   {
@@ -248,44 +278,60 @@ export const THREAT_DATABASE: ThreatEntry[] = [
 
   // ── Category 5: Entropy Analysis ───────────────────────────────────────────
   {
+    id: 'entropy_analysis',
+    category: 'Entropy Analysis',
+    label: 'Machine-Generated Pattern Detected',
+    score: 18,
+    severity: 'Moderate',
+    shortDescription: 'The domain shows statistical patterns of machine-generated randomness: high digit density, low vowel ratio, or long alphanumeric clusters.',
+    howItWorks:
+      'Human-chosen domain names follow natural language patterns: they contain vowels, form pronounceable words, and avoid long random character runs. Domain Generation Algorithms (DGAs) used by phishing kits and botnets produce domains algorithmically — resulting in high digit ratios, consonant-heavy strings, and random-looking clusters like "xj82kd92". This engine calculates three entropy signals: digit density (>30% digits), vowel ratio (<20% vowels), and alphanumeric clustering (8+ mixed chars in a row).',
+    attackerUsage:
+      'Phishing operations generate thousands of unique domain variants per campaign using DGAs. Each victim or click may get a unique URL, preventing any single domain from being blocklisted. Botnets use DGAs for command-and-control: both the attacker\'s server and the infected machines independently generate the same domain names using a shared algorithm and date seed.',
+    example: 'xj82kd92-login.net, qp74nd31-banklogin.xyz, xjkdwqpt-secure.xyz',
+    defenseNote:
+      'A domain that looks like a randomly generated string almost certainly is one. Legitimate businesses invest in memorable, pronounceable domain names. Machine-like names are a strong signal of disposable infrastructure.',
+  },
+  // Supplementary entropy breakdowns (educational)
+  {
     id: 'entropy_digits',
     category: 'Entropy Analysis',
-    label: 'High Digit Density',
+    label: 'High Digit Density (Detail)',
     score: 10,
     severity: 'Moderate',
-    shortDescription: 'Domain contains an unusually high proportion of numbers.',
+    shortDescription: 'Domain contains an unusually high proportion of numbers (>30%).',
     howItWorks:
-      'Human-memorable domains use words. Machine-generated domains — created algorithmically by malware or phishing kits that churn through thousands of unique domains — have high digit ratios because random strings contain numbers roughly as often as letters.',
+      'Human-memorable domains use words. Machine-generated domains have high digit ratios because random strings naturally contain numbers roughly as often as letters.',
     attackerUsage:
-      'Domain Generation Algorithms (DGAs) used by botnets and phishing infrastructure produce domains like "xj82kd92-login.net". These are hard to blocklist because each is unique. High digit ratio is a statistical fingerprint of algorithmic generation.',
+      'Domain Generation Algorithms (DGAs) produce domains like "xj82kd92-login.net". High digit ratio is a statistical fingerprint of algorithmic generation.',
     example: 'xj82kd92-login.net',
     defenseNote: 'Legitimate services invest in memorable, human-readable domains. Heavy numbers suggest automation.',
   },
   {
     id: 'entropy_vowels',
     category: 'Entropy Analysis',
-    label: 'Low Vowel Ratio',
+    label: 'Low Vowel Ratio (Detail)',
     score: 8,
     severity: 'Weak',
-    shortDescription: 'Domain has very few vowels, indicating machine-generated randomness.',
+    shortDescription: 'Domain has very few vowels (<20%), indicating machine-generated randomness.',
     howItWorks:
-      'Natural language (including domain names people choose) follows vowel-consonant patterns. English words average ~35-40% vowels. Truly random strings have ~20% vowels because only 5 of 26 letters are vowels. A very low vowel ratio statistically suggests generation by algorithm rather than human choice.',
+      'Natural language averages ~35-40% vowels. Truly random strings have ~20% because only 5 of 26 letters are vowels. Very low vowel density statistically suggests algorithmic generation.',
     attackerUsage:
-      'DGA domains often appear as consonant-heavy random strings. While any single indicator is weak, low vowel density combined with other signals correlates with disposable phishing infrastructure.',
+      'DGA domains appear as consonant-heavy random strings, hard to pronounce and hard to remember — because they were never intended to be remembered by humans.',
     example: 'xjkdwqpt-secure.xyz',
-    defenseNote: 'A domain you can\'t pronounce is one a human probably didn\'t choose.',
+    defenseNote: 'A domain you cannot pronounce is one a human probably did not choose.',
   },
   {
     id: 'entropy_alphanum',
     category: 'Entropy Analysis',
-    label: 'Randomized Alphanumeric Clusters',
+    label: 'Randomized Alphanumeric Clusters (Detail)',
     score: 15,
     severity: 'Moderate',
-    shortDescription: 'Domain contains clusters of mixed letters and numbers with no linguistic pattern.',
+    shortDescription: 'Domain contains 8+ consecutive mixed letters and numbers with no linguistic pattern.',
     howItWorks:
-      'Sequences like "aj82kd92x" have near-zero probability of appearing in a human-chosen domain. They are statistical outliers from random string generation. The engine detects these using n-gram entropy analysis — looking for segments where randomness exceeds what natural language produces.',
+      'Sequences like "aj82kd92x" have near-zero probability of appearing in a human-chosen domain. These are statistical outliers from random string generation.',
     attackerUsage:
-      'Phishing kits generate unique subdomains for each victim to prevent URL-based detection. A kit might create "xj82kd92-banklogin.example.com" for one victim and "qp74nd31-banklogin.example.com" for another — every link is unique and harder to blocklist.',
+      'Phishing kits generate unique subdomains per victim to prevent URL-based detection. Every link is unique and harder to blocklist.',
     example: 'aj82kd92x.login.net',
     defenseNote:
       'If a domain looks like a randomly generated string, treat it like one — it probably is.',
