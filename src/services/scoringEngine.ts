@@ -1,13 +1,15 @@
-import { HeuristicResult, TIER_MULTIPLIERS } from '../types/engine';
+import { HeuristicResult } from '../types/engine';
 import { BrandImpersonationReport } from './brandImpersonation';
 import { PathAnalysisReport } from './pathAnalyzer';
 import { SuppressionReport } from './suppressionEngine';
 
 export type RiskLevel = 'Low' | 'Moderate' | 'High' | 'Critical';
+export type ConfidenceLevel = 'Low' | 'Moderate' | 'High';
 
 export interface ScoringOutput {
   totalScore: number;
   riskLevel: RiskLevel;
+  confidence: ConfidenceLevel;
   color: string;
   hexBg: string;
 }
@@ -20,18 +22,35 @@ const RISK_THRESHOLDS: { min: number; level: RiskLevel; color: string; hexBg: st
 ];
 
 /**
- * Applies tier multiplier to a heuristic base score.
+ * Confidence Engine
+ *
+ * Score and tier are independent axes.
+ * The tier (critical/strong/moderate/weak) on each signal contributes
+ * to a separate CONFIDENCE score, not to amplifying the risk score.
+ * This prevents tier multipliers from causing score inflation.
  */
-const calculateWeightedScore = (result: HeuristicResult, suppressedIds: string[]): number => {
-  const multiplier = TIER_MULTIPLIERS[result.severityTier];
-  let weightedScore = result.baseScore * multiplier;
+const CONFIDENCE_CONTRIBUTIONS: Record<HeuristicResult['severityTier'], number> = {
+  critical: 25,
+  strong: 12,
+  moderate: 6,
+  weak: 3,
+};
 
-  // If this specific signal was contextually suppressed, reduce its individual impact
-  if (suppressedIds.includes(result.id)) {
-    weightedScore *= 0.3; 
-  }
+/**
+ * Specific high-value heuristics also add extra confidence directly.
+ * Matches the Master Risk Metric Table spec exactly.
+ */
+const HIGH_CONFIDENCE_SIGNALS = new Set([
+  'at_symbol',             // @ abuse → +25
+  'brand_typosquatting_1', // typosquatting ed1 → +20
+  'brand_subdomain_confusion', // subdomain abuse → +25
+  'brand_char_substitution',   // char substitution → +20
+]);
 
-  return Math.round(weightedScore);
+const mapConfidence = (score: number): ConfidenceLevel => {
+  if (score >= 46) return 'High';
+  if (score >= 21) return 'Moderate';
+  return 'Low';
 };
 
 export const calculateScore = (
@@ -41,50 +60,60 @@ export const calculateScore = (
   pathReport: PathAnalysisReport,
   suppression: SuppressionReport
 ): ScoringOutput => {
-  let accumulatedScore = 0;
+  let riskAccumulator = 0;
+  let confidenceAccumulator = 0;
   const suppressed = suppression.suppressedSignals;
 
-  // 1. Add weighted structural scores
-  structuralHeuristics.filter(h => h.triggered).forEach(h => {
-    accumulatedScore += calculateWeightedScore(h, suppressed);
-  });
+  const addSignal = (h: HeuristicResult) => {
+    if (!h.triggered) return;
 
-  // 2. Add weighted brand impersonation scores
-  impersonation.signals.filter(h => h.triggered).forEach(h => {
-    accumulatedScore += calculateWeightedScore(h, suppressed);
-  });
+    // Suppressed signals have their risk score reduced by 70%
+    const suppressionFactor = suppressed.includes(h.id) ? 0.3 : 1.0;
+    riskAccumulator += h.baseScore * suppressionFactor;
 
-  // 3. Add weighted entropy score
-  if (entropyResult && entropyResult.triggered) {
-    accumulatedScore += calculateWeightedScore(entropyResult, suppressed);
+    // Confidence is contributed by tier + bonus for specific signals
+    let confBonus = CONFIDENCE_CONTRIBUTIONS[h.severityTier];
+    if (HIGH_CONFIDENCE_SIGNALS.has(h.id)) confBonus += 10;
+    confidenceAccumulator += confBonus;
+  };
+
+  // 1. Structural heuristics
+  structuralHeuristics.forEach(addSignal);
+
+  // 2. Brand impersonation signals
+  impersonation.signals.forEach(addSignal);
+
+  // 3. Entropy signals
+  if (entropyResult) addSignal(entropyResult);
+
+  // 4. Path analysis signals
+  pathReport.signals.forEach(addSignal);
+
+  // 5. Correlation Boost (Impersonation + Suspicious TLD + no trusted root)
+  // As per the spec: contextual boosting, never a hard override
+  if (
+    !suppression.isTrustedRoot &&
+    impersonation.detected &&
+    structuralHeuristics.some(h => h.id === 'tld_check' && h.triggered)
+  ) {
+    riskAccumulator += 15; // Modest contextual boost
+    confidenceAccumulator += 10;
   }
 
-  // 4. Add weighted path analysis scores
-  pathReport.signals.filter(h => h.triggered).forEach(h => {
-    accumulatedScore += calculateWeightedScore(h, suppressed);
-  });
+  // 6. Global Trust Suppression Dampening (affects full accumulated risk score)
+  riskAccumulator *= suppression.suppressionMultiplier;
 
-  // 5. Path Impersonation Correlation Boosting
-  // If (Brand keyword or Impersonation) AND (Auth keywords) AND (NOT trusted domain)
-  if (!suppression.isTrustedRoot && 
-      (impersonation.detected || pathReport.authKeywordsFound.length > 0) &&
-      structuralHeuristics.some(h => h.id === 'tld_check' && h.triggered)) {
-    // Dangerous combination: Suspicious TLD + Impersonation/Auth Bait
-    accumulatedScore += 35; // Significant correlation boost
-  }
+  // 7. Cap scores
+  const finalScore = Math.min(Math.round(riskAccumulator), 100);
+  const finalConfidence = Math.min(Math.round(confidenceAccumulator), 100);
 
-  // 6. Global Contextual Score Dampening
-  accumulatedScore *= suppression.suppressionMultiplier;
-
-  // 7. Map to Risk Level (Cap at 100)
-  const finalScore = Math.min(Math.round(accumulatedScore), 100);
-
-  const match = RISK_THRESHOLDS.find((t) => finalScore >= t.min) ?? RISK_THRESHOLDS[3];
+  const riskMatch = RISK_THRESHOLDS.find(t => finalScore >= t.min) ?? RISK_THRESHOLDS[3];
 
   return {
     totalScore: finalScore,
-    riskLevel: match.level,
-    color: match.color,
-    hexBg: match.hexBg,
+    riskLevel: riskMatch.level,
+    confidence: mapConfidence(finalConfidence),
+    color: riskMatch.color,
+    hexBg: riskMatch.hexBg,
   };
 };

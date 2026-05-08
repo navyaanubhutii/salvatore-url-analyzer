@@ -55,6 +55,7 @@ export default function ResultScreen() {
           level={report.score.riskLevel}
           score={report.score.totalScore}
           color={report.score.color}
+          confidence={report.score.confidence}
         />
 
         {/* ── Suppression Context (if applicable) */}

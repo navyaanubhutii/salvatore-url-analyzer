@@ -61,8 +61,8 @@ export const BrandImpersonationCard = ({ report }: Props) => {
         <View key={i} style={styles.signalRow}>
           <View style={styles.signalBullet} />
           <View style={styles.signalContent}>
-            <Text style={styles.signalType}>{signal.type}</Text>
-            <Text style={styles.signalDescription}>{signal.description}</Text>
+            <Text style={styles.signalType}>{signal.label}</Text>
+            <Text style={styles.signalDescription}>{signal.explanation}</Text>
           </View>
         </View>
       ))}
