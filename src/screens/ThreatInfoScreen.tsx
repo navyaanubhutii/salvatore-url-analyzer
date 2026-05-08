@@ -120,7 +120,7 @@ export default function ThreatInfoScreen() {
   const toggle = (id: string) => setActiveId(prev => (prev === id ? null : id));
 
   return (
-    <LinearGradient colors={['#0f172a', '#0d1f3c']} style={styles.container}>
+    <LinearGradient colors={['#0f172a', '#064e3b']} style={styles.container}>
       <ScrollView
         contentContainerStyle={[
           styles.content,

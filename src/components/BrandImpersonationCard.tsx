@@ -75,7 +75,7 @@ export const BrandImpersonationCard = ({ report }: Props) => {
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={{ marginLeft: 6, marginTop: 2 }}
           >
-            <Ionicons name="information-circle-outline" size={20} color="#475569" />
+            <Ionicons name="information-circle-outline" size={20} color="#60a5fa" />
           </TouchableOpacity>
         </View>
       ))}

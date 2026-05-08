@@ -32,7 +32,7 @@ export const BreakdownItem = ({ finding }: BreakdownItemProps) => {
         </View>
         {/* ⓘ Info button */}
         <TouchableOpacity onPress={openInfo} style={styles.infoBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name="information-circle-outline" size={22} color="#475569" />
+          <Ionicons name="information-circle-outline" size={22} color="#60a5fa" />
         </TouchableOpacity>
       </View>
       <Text style={styles.description}>{finding.explanation}</Text>
