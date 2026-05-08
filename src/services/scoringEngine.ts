@@ -21,11 +21,23 @@ const RISK_THRESHOLDS: { min: number; level: RiskLevel; color: string; hexBg: st
   { min: 0,  level: 'Low',      color: '#22c55e', hexBg: 'rgba(34,197,94,0.12)'  },
 ];
 
-const SEVERITY_FLOORS: Record<HeuristicResult['severityTier'], number> = {
+/**
+ * Severity Risk Floors
+ *
+ * ONLY 'critical' tier signals establish a guaranteed minimum risk class.
+ * Rationale: critical signals represent near-certain intentional attacks
+ * (typosquatting, subdomain confusion, @ abuse, char substitution).
+ * A single such indicator is sufficient to classify as Critical regardless of
+ * how few other signals are present.
+ *
+ * 'strong', 'moderate', 'weak' signals add their raw baseScore only.
+ * They are structural smells — suspicious but not conclusive on their own.
+ * This prevents benign structural anomalies (many hyphens, long domain) from
+ * being falsely inflated to High/Critical just by their tier.
+ */
+const SEVERITY_FLOORS: Partial<Record<HeuristicResult['severityTier'], number>> = {
   critical: 76,
-  strong: 51,
-  moderate: 26,
-  weak: 0,
+  // strong, moderate, weak: no floor — score accumulates naturally
 };
 
 const CONFIDENCE_CONTRIBUTIONS: Record<HeuristicResult['severityTier'], number> = {
@@ -70,9 +82,9 @@ export const calculateScore = (
     
     riskAccumulator += effectiveRisk;
 
-    // If not suppressed, it establishes a risk floor based on its severity tier
+    // Only critical-tier signals establish a guaranteed risk floor
     if (suppressionFactor === 1.0) {
-      const floor = SEVERITY_FLOORS[h.severityTier];
+      const floor = SEVERITY_FLOORS[h.severityTier] ?? 0;
       if (floor > highestSeverityRiskFloor) highestSeverityRiskFloor = floor;
     }
 
