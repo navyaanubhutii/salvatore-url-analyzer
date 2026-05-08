@@ -1,6 +1,7 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BrandImpersonationReport } from '../services/brandImpersonation';
+import { useRouter } from 'expo-router';
 
 interface Props {
   report: BrandImpersonationReport;
@@ -16,7 +17,12 @@ interface Props {
  *  - each detection type and its explanation
  */
 export const BrandImpersonationCard = ({ report }: Props) => {
+  const router = useRouter();
   if (!report.detected) return null;
+
+  const openInfo = (signalId: string) => {
+    router.push({ pathname: '/threat-info', params: { focusId: signalId } });
+  };
 
   return (
     <View style={styles.container}>
@@ -64,6 +70,13 @@ export const BrandImpersonationCard = ({ report }: Props) => {
             <Text style={styles.signalType}>{signal.label}</Text>
             <Text style={styles.signalDescription}>{signal.explanation}</Text>
           </View>
+          <TouchableOpacity
+            onPress={() => openInfo(signal.id)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={{ marginLeft: 6, marginTop: 2 }}
+          >
+            <Ionicons name="information-circle-outline" size={20} color="#475569" />
+          </TouchableOpacity>
         </View>
       ))}
     </View>

@@ -1,13 +1,19 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PathAnalysisReport } from '../services/pathAnalyzer';
+import { useRouter } from 'expo-router';
 
 interface Props {
   report: PathAnalysisReport;
 }
 
 export const PathAnalysisCard = ({ report }: Props) => {
+  const router = useRouter();
   if (!report.detected) return null;
+
+  const openInfo = (signalId: string) => {
+    router.push({ pathname: '/threat-info', params: { focusId: signalId } });
+  };
 
   return (
     <View style={styles.container}>
@@ -18,77 +24,31 @@ export const PathAnalysisCard = ({ report }: Props) => {
         </View>
       </View>
 
-      {report.authKeywordsFound.length > 0 && (
-        <View style={styles.row}>
-          <Ionicons name="key-outline" size={16} color="#fbbf24" style={styles.icon} />
+      {report.signals.map((signal) => (
+        <View key={signal.id} style={styles.row}>
+          <Ionicons
+            name={
+              signal.severityTier === 'critical' || signal.severityTier === 'strong'
+                ? 'warning-outline'
+                : 'alert-circle-outline'
+            }
+            size={16}
+            color={signal.severityTier === 'critical' ? '#ef4444' : signal.severityTier === 'strong' ? '#f97316' : '#eab308'}
+            style={styles.icon}
+          />
           <View style={styles.content}>
-            <Text style={styles.label}>Authentication Bait</Text>
-            <Text style={styles.value}>
-              Trust-triggering keywords detected: {report.authKeywordsFound.join(', ')}
-            </Text>
+            <Text style={styles.label}>{signal.label}</Text>
+            <Text style={styles.value}>{signal.explanation}</Text>
           </View>
+          <TouchableOpacity
+            onPress={() => openInfo(signal.id)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.infoBtn}
+          >
+            <Ionicons name="information-circle-outline" size={20} color="#475569" />
+          </TouchableOpacity>
         </View>
-      )}
-
-      {report.redirectDetected && (
-        <View style={styles.row}>
-          <Ionicons name="swap-horizontal" size={16} color="#ef4444" style={styles.icon} />
-          <View style={styles.content}>
-            <Text style={[styles.label, { color: '#ef4444' }]}>Redirect Parameter Abuse</Text>
-            <Text style={styles.value}>
-              URL attempts to redirect the user, potentially to obscure the final destination.
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {report.encodedContent && (
-        <View style={styles.row}>
-          <Ionicons name="code-slash" size={16} color="#94a3b8" style={styles.icon} />
-          <View style={styles.content}>
-            <Text style={styles.label}>Encoded Content</Text>
-            <Text style={styles.value}>
-              Excessive URL encoding present, a common filter evasion tactic.
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {report.suspiciousExtensions.length > 0 && (
-        <View style={styles.row}>
-          <Ionicons name="document-text" size={16} color="#ef4444" style={styles.icon} />
-          <View style={styles.content}>
-            <Text style={[styles.label, { color: '#ef4444' }]}>Suspicious File Target</Text>
-            <Text style={styles.value}>
-              Path targets potentially unsafe extensions: {report.suspiciousExtensions.join(', ')}
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {report.pathDepth > 5 && (
-        <View style={styles.row}>
-          <Ionicons name="folder-open" size={16} color="#94a3b8" style={styles.icon} />
-          <View style={styles.content}>
-            <Text style={styles.label}>Deep Path Layering</Text>
-            <Text style={styles.value}>
-              Unusually deep folder structure ({report.pathDepth} levels).
-            </Text>
-          </View>
-        </View>
-      )}
-      
-      {report.fragmentAbuse && (
-        <View style={styles.row}>
-          <Ionicons name="pricetag" size={16} color="#fbbf24" style={styles.icon} />
-          <View style={styles.content}>
-            <Text style={styles.label}>Fragment Impersonation</Text>
-            <Text style={styles.value}>
-              Client-side fragment (#) contains brand names to visually deceive.
-            </Text>
-          </View>
-        </View>
-      )}
+      ))}
     </View>
   );
 };
@@ -139,5 +99,9 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontSize: 12,
     lineHeight: 18,
+  },
+  infoBtn: {
+    marginLeft: 8,
+    marginTop: 1,
   },
 });
